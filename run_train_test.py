@@ -123,11 +123,14 @@ def run(config:dict,
         # load dates
         dates_filepath = 'data/F-F_Research_Data_5_Factors_2x3_daily.CSV'
         if not os.path.exists(dates_filepath):
-            ff5 = pd.read_csv("https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_daily_CSV.zip", header=2, index_col=0)
+            os.makedirs(os.path.dirname(dates_filepath), exist_ok=True)
+            ff5 = pd.read_csv("https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_daily_CSV.zip", header=4, index_col=0)
             ff5.to_csv(dates_filepath)
         FamaFrenchDailyData = pd.read_csv(dates_filepath, index_col=0) / 100
+        ff_daily_index = pd.to_numeric(FamaFrenchDailyData.index, errors='coerce')
+        ff_daily_date_mask = (ff_daily_index > 19980000) & (ff_daily_index < 20170000)
         daily_dates = pd.to_datetime(
-            FamaFrenchDailyData.index[(FamaFrenchDailyData.index > 19980000) & (FamaFrenchDailyData.index < 20170000)],
+            ff_daily_index[ff_daily_date_mask].astype(int).astype(str),
             format ='%Y%m%d')
         del FamaFrenchDailyData
     

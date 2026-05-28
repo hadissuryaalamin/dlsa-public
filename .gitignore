@@ -4,6 +4,7 @@ daily-returns.csv
 *.npz
 credentials.yaml
 .vscode/
+results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -14,6 +14,10 @@ torch.autograd.set_detect_anomaly(True)
 torch.backends.cudnn.deterministic = False
 # torch.backends.cudnn.benchmark = True
 # torch.use_deterministic_algorithms()
+
+
+def uses_gnn(model):
+    return getattr(model.module if isinstance(model, nn.DataParallel) else model, "use_gnn", False)
     
     
 def train(model,
@@ -93,10 +97,16 @@ def train(model,
                 f"batch period len {min(batchsize*(i+1),T) - batchsize*i}"
             )
             # weights[idxs_selected[batchsize*i:min(batchsize*(i+1),T-lookback),:]] = model(torch.tensor(windows[batchsize*i:min(batchsize*(i+1),T-lookback)][idxs_selected[batchsize*i:min(batchsize*(i+1),T-lookback),:]],device=device)) 
-            idxs_batch_i = idxs_selected[batchsize*i:min(batchsize*(i+1),T-lookback),:]  # idxs of valid residuals to trade in batch i
-            input_data_batch_i = windows[batchsize*i:min(batchsize*(i+1),T-lookback)][idxs_batch_i]  
+            batch_start = batchsize*i
+            batch_end = min(batchsize*(i+1),T-lookback)
+            idxs_batch_i = idxs_selected[batch_start:batch_end,:]  # idxs of valid residuals to trade in batch i
+            input_data_batch_i = windows[batch_start:batch_end][idxs_batch_i.numpy()]
             logging.debug(f"epoch {epoch} batch {i} input_data_batch_i.shape {input_data_batch_i.shape}")
-            weights[idxs_batch_i] = model(torch.tensor(input_data_batch_i, device=device))
+            if uses_gnn(model):
+                weights = model(torch.tensor(windows[batch_start:batch_end], device=device),
+                                valid_mask=idxs_batch_i.to(device))
+            else:
+                weights[idxs_batch_i] = model(torch.tensor(input_data_batch_i, device=device))
             if residual_weights_train is None:
                 abs_sum = torch.sum(torch.abs(weights),axis=1,keepdim=True)
             else:  # residual_weights_train is TxN1xN2 (multiplied by returns on the right gives residuals)
@@ -364,7 +374,10 @@ def get_returns(model,
                 checkpoint = torch.load(paths_checkpoints[i],map_location = device)
                 model.load_state_dict(checkpoint['model_state_dict'])
                 model.to(device)
-            weights[idxs_selected] += model(torch.tensor(windows[idxs_selected],device=device))
+            if uses_gnn(model):
+                weights += model(torch.tensor(windows,device=device), valid_mask=idxs_selected.to(device))
+            else:
+                weights[idxs_selected] += model(torch.tensor(windows[idxs_selected.numpy()],device=device))
         weights /= len(paths_checkpoints)
         if residual_weights is None:
             abs_sum = torch.sum(torch.abs(weights), axis=1, keepdim=True)
