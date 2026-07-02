@@ -1,0 +1,51 @@
+# CNN+GNN+Transformer: ekstensi dari paper baseline dengan tambahan GNN
+# GNN type: fully_connected (mean aggregation antar saham)
+# Semua parameter training identik dengan paper baseline
+
+mode: "test"
+results_tag: "gnn-extension"
+debug: False
+
+model_name: "CNNTransformer"
+model: {
+  lookback: 30,
+  dropout: 0.25,
+  filter_numbers: [1,8],
+  filter_size: 2,
+  attention_heads: 4,
+  hidden_units_factor: 2, # gnn_hidden_dim=8, jadi hidden_units=2*8=16
+  normalization_conv: True,
+  use_transformer: True,
+  use_convolution: True,
+  use_gnn: True,                    # GNN aktif
+  gnn_type: "fully_connected",      # mean aggregation antar semua saham valid
+  gnn_hidden_dim: 8,                # sama dengan D (filter_numbers[-1])
+  gnn_layers: 1,
+}
+
+preprocess_func: "preprocess_cumsum"
+use_residual_weights: False
+cap_proportion: 0.01
+factor_models: {
+    "IPCA": [5],
+    "PCA": [5],
+    "FamaFrench": [5],
+}
+perturbation: {}
+
+num_epochs: 100
+optimizer_name: "Adam"
+optimizer_opts: {
+  lr: 0.001
+}
+batch_size: 125
+retrain_freq: 125
+rolling_retrain: True
+force_retrain: True
+length_training: 1000
+early_stopping: False
+objective: "sharpe"
+
+market_frictions: False
+trans_cost: 0
+hold_cost: 0

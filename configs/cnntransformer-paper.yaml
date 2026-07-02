@@ -1,0 +1,52 @@
+# Reproduksi exact parameter CNN+Transformer dari paper:
+# "Deep Learning Statistical Arbitrage" (Guijarro-Ordonez, Pelger, Zanotti 2022)
+# Referensi: Table A.II dan Appendix B.D
+
+mode: "test"
+results_tag: "paper-baseline"
+debug: False
+
+# Model parameters (Table A.II)
+model_name: "CNNTransformer"
+model: {
+  lookback: 30,           # LKB=30: lookback window L=30 hari
+  dropout: 0.25,          # DRP=0.25
+  filter_numbers: [1,8],  # D=8 filter CNN, 1 channel input
+  filter_size: 2,         # Dsize=2: local window size 2 hari
+  attention_heads: 4,     # ATT=4 attention heads
+  hidden_units_factor: 2, # HDN=2*D=16 hidden units di transformer FFN
+  normalization_conv: True,
+  use_transformer: True,
+  use_convolution: True,
+  use_gnn: False,         # Baseline paper: tidak ada GNN
+}
+
+# Data parameters
+preprocess_func: "preprocess_cumsum"
+use_residual_weights: False
+cap_proportion: 0.01
+factor_models: {
+    "IPCA": [5],
+    "PCA": [5],
+    "FamaFrench": [5],
+}
+perturbation: {}
+
+# Training parameters (Table A.II + Appendix B.D)
+num_epochs: 100           # EPCH=100
+optimizer_name: "Adam"    # OPT=Adam
+optimizer_opts: {
+  lr: 0.001               # LR=0.001
+}
+batch_size: 125           # BTCH=125: batch 125 hari (sesuai paper!)
+retrain_freq: 125         # RTFQ=125: reestimate tiap 125 hari
+rolling_retrain: True
+force_retrain: True
+length_training: 1000     # WDW=1000: rolling training window 1000 hari
+early_stopping: False
+objective: "sharpe"       # Sharpe ratio objective
+
+# Market frictions: off untuk main results (Section III.D)
+market_frictions: False
+trans_cost: 0
+hold_cost: 0

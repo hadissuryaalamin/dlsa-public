@@ -46,6 +46,7 @@ def configure_logging(app_name:str, run_id:str = None, logdir:str = "logs", debu
     ch.setFormatter(formatter)
     # add the handlers to the logger
     logging.getLogger('').handlers = []
+    logging.getLogger('').setLevel(logging.DEBUG if debug else logging.INFO)
     logging.getLogger('').addHandler(fh)
     logging.getLogger('').addHandler(ch)
     logging.info(f"STARTED LOGGING FROM CHILD")

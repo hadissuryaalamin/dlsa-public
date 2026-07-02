@@ -9,6 +9,10 @@ import torch.nn as nn
 
 from utils import import_string
 
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 torch.set_default_dtype(torch.float)
 torch.autograd.set_detect_anomaly(True)
 torch.backends.cudnn.deterministic = False
@@ -460,10 +464,15 @@ def test(Data,
         assets_to_trade = np.load('residuals/superMask.npy')
         all_weights = np.zeros((T-length_training, len(assets_to_trade)))
    
+    total_subperiods = int((T-length_training) / retrain_freq) + 1
+    test_start_wall = time.time()
+
     # run train/test over dataset
-    for t in range(int( (T-length_training) / retrain_freq ) + 1): 
-        logging.info(f'AT SUBPERIOD {t}/{int((T-length_training)/retrain_freq)+1}')
-        # logging.info(f"{Data[initialTrain:length_training+(t)*retrain_freq].shape} {Data[length_training+t*retrain_freq:min(length_training+(t+1)*retrain_freq,T)].shape}")            
+    for t in range(total_subperiods):
+        subperiod_start = time.time()
+        logging.info(f'AT SUBPERIOD {t}/{total_subperiods} '
+                     f'(train days {t*retrain_freq}:{length_training+t*retrain_freq}, '
+                     f'test days {length_training+t*retrain_freq}:{min(length_training+(t+1)*retrain_freq,T)})')
         data_train_t = Data[t*retrain_freq:length_training+t*retrain_freq]
         data_test_t = Data[length_training+t*retrain_freq-lookback:min(length_training+(t+1)*retrain_freq,T)]
         residual_weights_train_t = None if residual_weights is None \
@@ -474,6 +483,12 @@ def test(Data,
         
         if rolling_retrain or t == 0:
             model_t = model(logdir=output_path, **config['model'])
+            if t == 0:
+                n_params = count_parameters(model_t)
+                logging.info(f'MODEL INFO | name: {model_t.__class__.__name__} | '
+                             f'trainable params: {n_params:,} | '
+                             f'use_gnn: {getattr(model_t, "use_gnn", False)} | '
+                             f'use_transformer: {getattr(model_t, "use_transformer", False)}')
             rets_t,turns_t,shorts_t,weights_t,a2t = train(model_t,
                                               preprocess = preprocess,
                                               data_train = data_train_t, 
@@ -525,9 +540,29 @@ def test(Data,
         all_weights[t*retrain_freq:min((t+1)*retrain_freq,T-length_training),assets_to_trade] = w
         if 'cpu' not in device:
             with torch.cuda.device(device):
-                torch.cuda.empty_cache() 
-        
-    logging.info(f'TRAIN/TEST COMPLETE')
+                torch.cuda.empty_cache()
+
+        # per-subperiod metrics for reporting
+        sp_rets = returns[t*retrain_freq:min((t+1)*retrain_freq,T-length_training)]
+        if len(sp_rets) > 1:
+            sp_ret   = np.mean(sp_rets)
+            sp_std   = np.std(sp_rets)
+            sp_sr    = sp_ret / sp_std if sp_std > 0 else 0.0
+            sp_turn  = np.mean(turnovers[t*retrain_freq:min((t+1)*retrain_freq,T-length_training)])
+            sp_short = np.mean(short_proportions[t*retrain_freq:min((t+1)*retrain_freq,T-length_training)])
+            elapsed  = time.time() - subperiod_start
+            logging.info(
+                f'SUBPERIOD {t} DONE | '
+                f'SR(ann): {sp_sr*np.sqrt(252):.3f} | '
+                f'ret(ann): {sp_ret*252:.4f} | '
+                f'std(ann): {sp_std*np.sqrt(252):.4f} | '
+                f'turnover: {sp_turn:.4f} | '
+                f'short_prop: {sp_short:.4f} | '
+                f'elapsed: {elapsed:.1f}s'
+            )
+
+    total_elapsed = time.time() - test_start_wall
+    logging.info(f'TRAIN/TEST COMPLETE | total elapsed: {total_elapsed/3600:.2f}h ({total_elapsed:.0f}s)')
     cumRets = np.cumprod(1+returns)
     plt.figure()
     plt.plot_date(daily_dates[-len(cumRets):], cumRets, marker='None', linestyle='solid')

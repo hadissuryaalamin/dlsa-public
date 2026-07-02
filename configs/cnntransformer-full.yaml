@@ -1,7 +1,7 @@
 # Major parameters
 mode: "test"  # can be 'test' or 'estimate'
 results_tag: ""  # optional; try not to use underscores in this tag, use dashes instead
-debug: False  # set to True to turn on debug logging and file naming
+debug: True  # set to True to turn on debug logging and file naming
 # Model parameters
 model_name: "CNNTransformer"  # name of a class defined in models folder and initialized in model folder's __init__.py
 model: {  #  contains parameter settings for __init__() function of class with name `model_name`
